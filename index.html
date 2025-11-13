@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jul-ifiera Din Bild</title>
-    <!-- Ladda Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Ställ in Inter som standardtypsnitt -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body {
@@ -40,7 +38,6 @@
             <p class="text-gray-600">Ladda upp en bild och låt AI:n klä dig i en ful jultröja och ge dig en festlig bakgrund!</p>
         </header>
 
-        <!-- Bildinmatning och instruktioner -->
         <div class="mb-6 space-y-4">
             <div>
                 <label for="imageUpload" class="block text-lg font-medium text-xmas-green mb-2">1. Välj en bild på dig själv:</label>
@@ -67,9 +64,7 @@
             </button>
         </div>
 
-        <!-- Resultatvisning -->
         <div id="resultsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-            <!-- Ursprunglig bild -->
             <div class="text-center">
                 <h2 class="text-xl font-semibold text-xmas-green mb-3">Din ursprungliga bild</h2>
                 <div class="bg-gray-100 border-dashed border-2 border-gray-300 rounded-lg p-2 flex items-center justify-center min-h-[300px]">
@@ -77,7 +72,6 @@
                 </div>
             </div>
 
-            <!-- Julifierad bild -->
             <div class="text-center">
                 <h2 class="text-xl font-semibold text-xmas-green mb-3">Din julifierade bild</h2>
                 <div class="bg-gray-100 border-dashed border-2 border-red-400 rounded-lg p-2 flex items-center justify-center min-h-[300px]">
@@ -86,7 +80,6 @@
             </div>
         </div>
 
-        <!-- Status/Meddelande Box -->
         <div id="messageBox" class="mt-8 p-4 hidden rounded-lg text-center font-medium" role="alert"></div>
         
     </div>
@@ -102,10 +95,9 @@
         const loadingSpinner = document.getElementById('loadingSpinner');
         const messageBox = document.getElementById('messageBox');
         
-        // Konstanta värden för API-anropet
-        const apiUrl = `https://script.google.com/macros/s/AKfycbwDnQZl66noTDhElR1BlAysoQ25an3gE7-J8ktColQ8hl1M8W-9Bspod0VJRhRkN17akA/exec
-=${apiKey}`;
-        const model = "gemini-2.5-flash-image-preview";
+        // KONSTANTA VÄRDEN FÖR API-ANROPET (NY SÄKER PROXY-URL)
+        const apiUrl = 'https://script.google.com/macros/s/AKfycbwDnQZl66noTDhElR1BlAysoQ25an3gE7-J8ktColQ8hl1M8W-9Bspod0VJRhRkN17akA/exec';
+        const model = "gemini-2.5-flash-image-preview"; // Modellen används i payloaden, inte i URL:en längre
 
         let base64Image = null;
         let mimeType = null;
@@ -140,10 +132,15 @@
 
         /**
          * Visar en förhandsgranskning av den uppladdade bilden och konverterar den till Base64.
+         * Rättat: Säkerställer att knappen aktiveras efter filval.
          * @param {Event} event Händelseobjekt från filval.
          */
         function previewImage(event) {
             const file = event.target.files[0];
+            
+            // Återställ knappen till inaktiv tills filen är verifierad
+            julifyButton.disabled = true;
+
             if (file) {
                 mimeType = file.type;
                 imagePreview.src = URL.createObjectURL(file);
@@ -153,14 +150,20 @@
                 reader.onloadend = () => {
                     // Tar bort "data:image/jpeg;base64," prefixet
                     base64Image = reader.result.split(',')[1];
-                    julifyButton.disabled = false;
                     messageBox.classList.add('hidden');
+                    
+                    // KNAPPEN AKTIVERAS NÄR KONVERTERINGEN ÄR KLAR
+                    julifyButton.disabled = false; 
                 };
                 reader.onerror = () => {
                     showMessage("Kunde inte läsa filen.", 'error');
                     julifyButton.disabled = true;
                 };
                 reader.readAsDataURL(file);
+
+                // Visa info-meddelande att bilden är uppladdad
+                showMessage(`Bild vald: ${file.name}. Klicka på Jul-ifiera!`, 'info');
+
             } else {
                 imagePreview.src = "https://placehold.co/400x400/D3D3D3/000000?text=Ladda+Upp+En+Bild";
                 base64Image = null;
@@ -183,13 +186,13 @@
             buttonText.textContent = "Jul-ifierar...";
             loadingSpinner.classList.remove('hidden');
             resultImage.src = "https://placehold.co/400x400/D30000/FFFFFF?text=Laddar...";
-            showMessage("Skapar din julbild. Detta kan ta en stund...", 'info');
+            showMessage("Skapar din julbild via Apps Script-tjänsten. Detta kan ta en stund...", 'info');
 
             const userPrompt = promptInput.value.trim();
             
             const finalPrompt = `Transformera bilden enligt instruktionerna. Lägg till dessa användardetaljer: ${userPrompt || 'Inga extra detaljer.'}`;
             
-            // Bygger payloaden för Gemini API
+            // Bygger payloaden för Apps Script (som sedan skickar den till Gemini API)
             const contents = [
                 {
                     role: "user",
@@ -222,8 +225,10 @@
                 try {
                     const response = await fetch(apiUrl, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
+                        // Apps Script förväntar sig data i form-data, inte som ren JSON
+                        // Därför måste vi skicka JSON-strängen som en 'data'-parameter:
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `data=${encodeURIComponent(JSON.stringify(payload))}`
                     });
 
                     if (!response.ok) {
@@ -233,9 +238,8 @@
                             delay *= 2;
                             continue;
                         }
-                        const errorData = await response.json();
-                        const errorMessage = errorData.error?.message || `Okänt fel med status: ${response.status}`;
-                        throw new Error(errorMessage);
+                        const errorText = await response.text();
+                        throw new Error(`Proxy/API-fel: Status ${response.status}. Detaljer: ${errorText}`);
                     }
 
                     const result = await response.json();
@@ -245,7 +249,7 @@
 
                     if (!base64Data) {
                         const finishReason = candidate?.finishReason;
-                        let errorMessage = "Kunde inte hämta bilddata från API-svaret. Försök med en tydligare prompt.";
+                        let errorMessage = "Kunde inte hämta bilddata. Försök med en tydligare bild/prompt.";
                         
                         if (finishReason === 'SAFETY') {
                             errorMessage = "Bildgenereringen blockerades på grund av säkerhetsfilter. Försök med en annan bild eller en mildare prompt.";
@@ -253,7 +257,6 @@
                             errorMessage = `Bildgenereringen misslyckades. Orsak: ${finishReason}. Försök igen.`;
                         }
                         
-                        // Log the full result for local debugging
                         console.error("API-svar saknade bilddata. Hela svaret:", result);
                         
                         throw new Error(errorMessage);
@@ -283,7 +286,7 @@
             }
         }
 
-        // Lägger till händelsehanterare via JavaScript eftersom funktionerna är modul-scoped
+        // Lägger till händelsehanterare
         imageUpload.addEventListener('change', previewImage);
         julifyButton.addEventListener('click', julifyImage);
     </script>
