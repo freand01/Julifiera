@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jul-ifiera Din Bild</title>
+    <!-- Ladda Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Ställ in Inter som standardtypsnitt -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+        }
+        /* Custom styles för extra julkänsla */
+        .christmas-bg {
+            background-image: linear-gradient(135deg, #FF6961 0%, #B00020 100%); /* Röd gradient */
+        }
+        .text-xmas-green {
+            color: #1a472a;
+        }
+        .btn-xmas {
+            background-color: #1a472a;
+            transition: transform 0.1s;
+        }
+        .btn-xmas:hover {
+            background-color: #276a3b;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="christmas-bg min-h-screen p-4 sm:p-8">
+
+    <div id="app" class="max-w-4xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-2xl">
+
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-xmas-green mb-2">🎄 Jul-ifiera Din Bild 🎅</h1>
+            <p class="text-gray-600">Ladda upp en bild och låt AI:n klä dig i en ful jultröja och ge dig en festlig bakgrund!</p>
+        </header>
+
+        <!-- Bildinmatning och instruktioner -->
+        <div class="mb-6 space-y-4">
+            <div>
+                <label for="imageUpload" class="block text-lg font-medium text-xmas-green mb-2">1. Välj en bild på dig själv:</label>
+                <input type="file" id="imageUpload" accept="image/*" class="w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-red-100 file:text-red-700
+                    hover:file:bg-red-200 cursor-pointer">
+            </div>
+
+            <div>
+                <label for="promptInput" class="block text-lg font-medium text-xmas-green mb-2">2. Lägg till egna jul-detaljer (valfritt):</label>
+                <textarea id="promptInput" rows="2" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 placeholder-gray-400" placeholder="T.ex. 'Tomteluva och en varm kopp varm choklad'"></textarea>
+            </div>
+
+            <button id="julifyButton"
+                    class="w-full btn-xmas text-white font-bold py-3 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center disabled:opacity-50" disabled>
+                <span id="buttonText">3. Jul-ifiera!</span>
+                <svg id="loadingSpinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Resultatvisning -->
+        <div id="resultsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+            <!-- Ursprunglig bild -->
+            <div class="text-center">
+                <h2 class="text-xl font-semibold text-xmas-green mb-3">Din ursprungliga bild</h2>
+                <div class="bg-gray-100 border-dashed border-2 border-gray-300 rounded-lg p-2 flex items-center justify-center min-h-[300px]">
+                    <img id="imagePreview" src="https://placehold.co/400x400/D3D3D3/000000?text=Ladda+Upp+En+Bild" alt="Förhandsgranskning av originalbild" class="max-w-full h-auto rounded-lg shadow-md max-h-[400px] object-contain">
+                </div>
+            </div>
+
+            <!-- Julifierad bild -->
+            <div class="text-center">
+                <h2 class="text-xl font-semibold text-xmas-green mb-3">Din julifierade bild</h2>
+                <div class="bg-gray-100 border-dashed border-2 border-red-400 rounded-lg p-2 flex items-center justify-center min-h-[300px]">
+                    <img id="resultImage" src="https://placehold.co/400x400/D30000/FFFFFF?text=Julifierat+Resultat" alt="Julifierad bild" class="max-w-full h-auto rounded-lg shadow-md max-h-[400px] object-contain">
+                </div>
+            </div>
+        </div>
+
+        <!-- Status/Meddelande Box -->
+        <div id="messageBox" class="mt-8 p-4 hidden rounded-lg text-center font-medium" role="alert"></div>
+        
+    </div>
+
+    <script type="module">
+        // UI-element
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const resultImage = document.getElementById('resultImage');
+        const promptInput = document.getElementById('promptInput');
+        const julifyButton = document.getElementById('julifyButton');
+        const buttonText = document.getElementById('buttonText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const messageBox = document.getElementById('messageBox');
+        
+        // Konstanta värden för API-anropet
+        const apiKey = "AIzaSyCdoWKUUNn4ATYIv5lBXvgBjIRN1JEvwfI";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`;
+        const model = "gemini-2.5-flash-image-preview";
+
+        let base64Image = null;
+        let mimeType = null;
+        
+        // System Prompt (instruktion till AI:n)
+        const systemPrompt = "Du är en bildredigerings-AI som specialiserar sig på att 'julifiera' porträttbilder. Ditt uppdrag är att transformera den inmatade bilden. Klä personen i en ful jultröja, och ge bakgrunden ett festligt, mysigt jultema (t.ex. en öppen spis, snöigt fönster eller gran). Stilen ska vara realistisk fotografering.";
+
+
+        /**
+         * Visar meddelanden i meddelandefältet.
+         * @param {string} message Texten som ska visas.
+         * @param {string} type Typ av meddelande ('success', 'error', 'info').
+         */
+        function showMessage(message, type = 'info') {
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800', 'bg-blue-100', 'text-blue-800');
+
+            switch (type) {
+                case 'success':
+                    messageBox.classList.add('bg-green-100', 'text-green-800');
+                    break;
+                case 'error':
+                    messageBox.classList.add('bg-red-100', 'text-red-800');
+                    break;
+                case 'info':
+                default:
+                    messageBox.classList.add('bg-blue-100', 'text-blue-800');
+                    break;
+            }
+            messageBox.classList.remove('hidden');
+        }
+
+        /**
+         * Visar en förhandsgranskning av den uppladdade bilden och konverterar den till Base64.
+         * @param {Event} event Händelseobjekt från filval.
+         */
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                mimeType = file.type;
+                imagePreview.src = URL.createObjectURL(file);
+                
+                // Konvertera bilden till Base64
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    // Tar bort "data:image/jpeg;base64," prefixet
+                    base64Image = reader.result.split(',')[1];
+                    julifyButton.disabled = false;
+                    messageBox.classList.add('hidden');
+                };
+                reader.onerror = () => {
+                    showMessage("Kunde inte läsa filen.", 'error');
+                    julifyButton.disabled = true;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                imagePreview.src = "https://placehold.co/400x400/D3D3D3/000000?text=Ladda+Upp+En+Bild";
+                base64Image = null;
+                mimeType = null;
+                julifyButton.disabled = true;
+            }
+        }
+
+        /**
+         * Hanterar knappen och API-anropet för att julifiera bilden.
+         */
+        async function julifyImage() {
+            if (!base64Image || !mimeType) {
+                showMessage("Vänligen ladda upp en bild först.", 'error');
+                return;
+            }
+
+            // UI feedback: inaktivera knapp och visa spinner
+            julifyButton.disabled = true;
+            buttonText.textContent = "Jul-ifierar...";
+            loadingSpinner.classList.remove('hidden');
+            resultImage.src = "https://placehold.co/400x400/D30000/FFFFFF?text=Laddar...";
+            showMessage("Skapar din julbild. Detta kan ta en stund...", 'info');
+
+            const userPrompt = promptInput.value.trim();
+            
+            const finalPrompt = `Transformera bilden enligt instruktionerna. Lägg till dessa användardetaljer: ${userPrompt || 'Inga extra detaljer.'}`;
+            
+            // Bygger payloaden för Gemini API
+            const contents = [
+                {
+                    role: "user",
+                    parts: [
+                        { text: finalPrompt },
+                        {
+                            inlineData: {
+                                mimeType: mimeType,
+                                data: base64Image
+                            }
+                        }
+                    ]
+                }
+            ];
+
+            const payload = {
+                contents: contents,
+                generationConfig: {
+                    responseModalities: ['TEXT', 'IMAGE']
+                },
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                }
+            };
+            
+            const maxRetries = 5;
+            let delay = 1000;
+            
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 429 && i < maxRetries - 1) {
+                            console.log(`För många förfrågningar (429). Försöker igen om ${delay / 1000}s...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            delay *= 2;
+                            continue;
+                        }
+                        const errorData = await response.json();
+                        const errorMessage = errorData.error?.message || `Okänt fel med status: ${response.status}`;
+                        throw new Error(errorMessage);
+                    }
+
+                    const result = await response.json();
+                    
+                    const candidate = result?.candidates?.[0];
+                    const base64Data = candidate?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+                    if (!base64Data) {
+                        const finishReason = candidate?.finishReason;
+                        let errorMessage = "Kunde inte hämta bilddata från API-svaret. Försök med en tydligare prompt.";
+                        
+                        if (finishReason === 'SAFETY') {
+                            errorMessage = "Bildgenereringen blockerades på grund av säkerhetsfilter. Försök med en annan bild eller en mildare prompt.";
+                        } else if (finishReason) {
+                            errorMessage = `Bildgenereringen misslyckades. Orsak: ${finishReason}. Försök igen.`;
+                        }
+                        
+                        // Log the full result for local debugging
+                        console.error("API-svar saknade bilddata. Hela svaret:", result);
+                        
+                        throw new Error(errorMessage);
+                    }
+
+                    const imageUrl = `data:image/png;base64,${base64Data}`;
+                    resultImage.src = imageUrl;
+                    showMessage("Din bild är julifierad! God jul!", 'success');
+                    
+                    // Återställ UI och avbryt loopen
+                    julifyButton.disabled = false;
+                    buttonText.textContent = "Jul-ifiera!";
+                    loadingSpinner.classList.add('hidden');
+                    return;
+
+                } catch (error) {
+                    console.error("Fel vid bildgenerering:", error);
+                    if (i === maxRetries - 1) {
+                        showMessage(`Ett allvarligt fel uppstod efter flera försök. Kontrollera konsolen för detaljer. Fel: ${error.message}`, 'error');
+                        // Återställ UI vid slutligt fel
+                        resultImage.src = "https://placehold.co/400x400/D30000/FFFFFF?text=Fel+Vid+Generering";
+                        julifyButton.disabled = false;
+                        buttonText.textContent = "Jul-ifiera!";
+                        loadingSpinner.classList.add('hidden');
+                    }
+                }
+            }
+        }
+
+        // Lägger till händelsehanterare via JavaScript eftersom funktionerna är modul-scoped
+        imageUpload.addEventListener('change', previewImage);
+        julifyButton.addEventListener('click', julifyImage);
+    </script>
+</body>
+</html>
